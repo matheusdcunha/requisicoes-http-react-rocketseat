@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router"
 
 import { api } from "../services/api"
@@ -19,6 +19,7 @@ const refundSchema = z.object({
 })
 
 import fileSvg from "../assets/file.svg"
+import { formatCurrency } from "../utils/formatCurrency"
 
 export function Refund() {
   const [name, setName] = useState("");
@@ -26,6 +27,7 @@ export function Refund() {
   const [amount, setAmount] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [file, setFile] = useState<File | null>(null)
+  const [fileURL, setFileURL] = useState<string | null>(null)
 
   const navigate = useNavigate()
   const params = useParams<{ id: string }>()
@@ -38,8 +40,8 @@ export function Refund() {
 
     try {
       setIsLoading(true)
-      
-      if(!file){
+
+      if (!file) {
         return alert("Selecione um arquivo de comprovante")
       }
 
@@ -48,10 +50,10 @@ export function Refund() {
 
       const response = await api.post("/uploads", fileUploadForm)
 
-      const data = refundSchema.parse({name, category, amount: amount.replace(",", ".")})
-      
-      await api.post("/refunds", {...data, filename: response.data.filename})
-      
+      const data = refundSchema.parse({ name, category, amount: amount.replace(",", ".") })
+
+      await api.post("/refunds", { ...data, filename: response.data.filename })
+
       console.log(data)
       navigate("/confirm", { state: { fromSubmit: true } })
     } catch (error) {
@@ -61,16 +63,42 @@ export function Refund() {
         return alert(error.issues[0].message)
       }
 
-      if(error instanceof AxiosError){
+      if (error instanceof AxiosError) {
         return alert(error.response?.data.message)
       }
 
       alert("Não foi possível realizar a solicitação")
-    } finally{
+    } finally {
       setIsLoading(false)
     }
 
   }
+
+  async function fetchRefund(id: string) {
+    try {
+      const { data } = await api.get<RefundAPIResponse>(`/refunds/${id}`)
+
+      setName(data.name);
+      setCategory(data.category);
+      setAmount(formatCurrency(data.amount));
+      setFileURL(data.filename)
+
+    } catch (error) {
+      console.log(error)
+
+      if (error instanceof AxiosError) {
+        return alert(error.response?.data.message)
+      }
+
+      alert("Não foi possível fazer sua requisição")
+    }
+  }
+
+  useEffect(() => {
+    if (params.id) {
+      fetchRefund(params.id)
+    }
+  }, [params.id])
 
   return (
     <form onSubmit={onSubmit} className="bg-gray-500 w-full rounded-xl flex flex-col p-10 gap-6 lg:min-w-[512px]">
@@ -119,8 +147,8 @@ export function Refund() {
       </div>
 
       {
-        params.id ?
-          <a href="https://www.youtube.com/"
+        (params.id && fileURL) ?
+          <a href={`http://localhost:3333/uploads/${fileURL}`}
             target="_blank"
             className="text-sm text-green-600 font-semibold flex items-center justify-center gap-2 my-6 hover:opacity-70 transition ease-linear"
           >
